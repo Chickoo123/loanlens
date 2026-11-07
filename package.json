@@ -1,1 +1,12 @@
-{"name":"loanlens","version":"1.0.0","private":true,"type":"module","description":"Multi-loan prepayment optimiser for Indian borrowers","scripts":{"test":"node --test","serve":"npx --yes serve@14.2.4 ."},"license":"MIT"}
+{
+  "name": "loanlens",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Check an Indian loan offer's Key Facts Statement against RBI rules: true APR, named malpractices, grievance letter",
+  "scripts": {
+    "test": "node --test",
+    "serve": "npx --yes serve@14.2.4 ."
+  },
+  "license": "MIT"
+}

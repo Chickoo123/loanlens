@@ -1,232 +1,206 @@
-import { emi, compareStrategies, prepayVsInvest, STRATEGIES } from "./engine.js";
+import { audit, schedule, grievanceLetter, computeApr, cashflows, pmt, DEFAULTS } from "./audit.js";
+import { RULES } from "./rules.js";
 
 const $ = s => document.querySelector(s);
 const h = v => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const inr = n => "₹" + Math.round(Math.abs(n)).toLocaleString("en-IN");
-const compact = n => { const a = Math.abs(n); return a >= 1e7 ? "₹" + (a / 1e7).toFixed(2) + " Cr" : a >= 1e5 ? "₹" + (a / 1e5).toFixed(1) + " L" : a >= 1e3 ? "₹" + (a / 1e3).toFixed(0) + "k" : "₹" + Math.round(a); };
-const dur = m => { const y = Math.floor(m / 12), mo = m % 12; return [y && `${y} yr${y > 1 ? "s" : ""}`, mo && `${mo} mo`].filter(Boolean).join(" ") || "0 mo"; };
-const START = new Date();
-const monthName = m => new Date(START.getFullYear(), START.getMonth() + m - 1, 1).toLocaleDateString("en-IN", { month: "short", year: "numeric" });
-const COLORS = ["#8b5cf6", "#ec4899", "#22d3ee", "#f59e0b", "#22c55e", "#f43f5e", "#a3e635", "#38bdf8"];
-const TYPES = { home: "Home", car: "Car", personal: "Personal", education: "Education", card: "Credit card", gold: "Gold", other: "Other" };
+const inr = (n, d = 0) => "₹" + Number(n).toLocaleString("en-IN", { minimumFractionDigits: d, maximumFractionDigits: d });
+const pct = n => (Number.isFinite(n) ? n.toFixed(2) + "%" : "—");
+const form = $("#form");
 
-const PRESETS = {
-  pro: [
-    { name: "Car loan", type: "car", principal: 650000, rate: 9.4, years: 5, penalty: 0 },
-    { name: "Personal loan", type: "personal", principal: 300000, rate: 13.5, years: 3, penalty: 3 },
-    { name: "Credit card EMI", type: "card", principal: 75000, rate: 18, years: 1, penalty: 0 },
-    { name: "Education loan", type: "education", principal: 900000, rate: 10.5, years: 7, penalty: 0 },
-  ],
-  home: [
-    { name: "Home loan", type: "home", principal: 4500000, rate: 8.5, years: 20, penalty: 0 },
-    { name: "Car loan", type: "car", principal: 700000, rate: 9.2, years: 5, penalty: 0 },
-    { name: "Personal loan", type: "personal", principal: 200000, rate: 14, years: 3, penalty: 4 },
-  ],
-};
-
-let uid = 0;
-const withId = l => ({ id: ++uid, ...l });
-const defaults = () => ({ loans: PRESETS.home.map(withId), extra: 15000, lump: 0, lumpMonth: 12, mode: "tenure", rollover: true, tax: 0, ret: 12, selected: null });
-
-function loadState() {
-  try {
-    if (location.hash.length > 1) {
-      const s = JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(1)))));
-      if (Array.isArray(s.loans)) { s.loans = s.loans.map(withId); return { ...defaults(), ...s }; }
-    }
-  } catch { /* ignore malformed links */ }
-  return defaults();
+// ---------- Examples (fictional offers that illustrate each check) ----------
+function examples() {
+  const bankBase = { sanctioned: 300000, rate: 11.25, tenure: 36, processingFee: 3000, rateType: "fixed", penalStyle: "charge" };
+  const app = { sanctioned: 50000, rate: 30, tenure: 6, advanceEmis: 1, processingFee: 2500, insurance: 999, digital: true, penalStyle: "rate_added",
+    disbursalDate: "2026-11-10", interestFromDate: "2026-11-07", firstEmiDate: "2026-12-10" };
+  app.emi = Math.round(pmt(app.sanctioned, app.rate, app.tenure));
+  app.statedNetDisbursed = Math.round(cashflows(app).net - 590);
+  app.statedApr = 34.5;
+  return {
+    app,
+    bank: { ...bankBase, emi: Math.round(pmt(300000, 11.25, 36)), statedNetDisbursed: Math.round(cashflows(bankBase).net), statedApr: +computeApr(bankBase).apr.toFixed(2) },
+    home: { sanctioned: 4000000, rate: 8.6, tenure: 240, processingFee: 10000, rateType: "floating", prepaymentChargePct: 2, sanctionedOnOrAfter2026: true,
+      brokenPeriodInterest: 28000, disbursalDate: "2026-03-26", firstEmiDate: "2026-05-05", statedApr: 8.65 },
+  };
 }
-const state = loadState();
 
-// ---------- Theme ----------
-try { const t = localStorage.getItem("ll-theme"); if (t) document.documentElement.dataset.theme = t; } catch { }
-$("#theme").addEventListener("click", () => {
-  const cur = document.documentElement.dataset.theme || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
-  const next = cur === "dark" ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
-  try { localStorage.setItem("ll-theme", next); } catch { }
-});
+function fill(values) {
+  const v = { ...DEFAULTS, ...values };
+  for (const el of form.elements) {
+    if (!el.name || !(el.name in v)) continue;
+    if (el.type === "checkbox") el.checked = !!v[el.name];
+    else if (el.type === "number") el.value = v[el.name] === null || v[el.name] === 0 ? "" : v[el.name];
+    else el.value = String(v[el.name] ?? "");
+  }
+  form.querySelectorAll("details").forEach(d => (d.open = ["disbursalDate", "interestFromDate", "firstEmiDate", "prepaymentChargePct", "digital"].some(k => values[k])));
+  toggleDigital();
+}
 
-// ---------- Inputs ----------
-function renderLoans() {
-  const host = $("#loans");
-  host.innerHTML = state.loans.map((l, i) => `
-    <div class="loan" data-id="${l.id}">
-      <div class="loan-top">
-        <input type="text" data-k="name" value="${h(l.name)}" aria-label="Loan name" maxlength="40">
-        <button class="remove" data-remove="${l.id}" aria-label="Remove ${h(l.name)}" title="Remove">×</button>
+function read() {
+  const v = {};
+  for (const el of form.elements) {
+    if (!el.name) continue;
+    if (el.type === "checkbox") v[el.name] = el.checked;
+    else if (el.type === "number") v[el.name] = el.value === "" ? (el.name === "coolingOffDays" ? null : 0) : Number(el.value);
+    else if (el.name === "sanctionedOnOrAfter2026") v[el.name] = el.value === "true";
+    else v[el.name] = el.value;
+  }
+  return v;
+}
+
+function toggleDigital() { form.querySelector("[data-digital]").hidden = !form.elements.digital.checked; }
+
+// ---------- Render ----------
+let last = null;
+function run() {
+  const input = read();
+  const result = audit(input);
+  const err = $("#errors");
+  if (result.errors) {
+    err.hidden = false; err.textContent = result.errors.join(" "); $("#jump").hidden = true;
+    $("#results").innerHTML = `<div class="card"><h2>Enter the loan terms</h2><p class="muted">Results appear as soon as the amount, rate and tenure are filled in.</p></div>`;
+    return;
+  }
+  err.hidden = true;
+  last = { input, result };
+  const jump = $("#jump");
+  const nIssues = result.findings.filter(f => f.status === "issue").length;
+  jump.hidden = false;
+  jump.innerHTML = `<span>${nIssues ? `${nIssues} issue${nIssues > 1 ? "s" : ""} found` : "No issues found"} · APR ${pct(result.summary.apr)}</span><span aria-hidden="true">View ↓</span>`;
+  const s = result.summary;
+  const issues = result.findings.filter(f => f.status === "issue");
+  const checks = result.findings.filter(f => f.status === "check");
+  const aprGap = s.statedApr ? s.apr - s.statedApr : 0;
+
+  const headline = issues.length
+    ? `${issues.length} thing${issues.length > 1 ? "s" : ""} to raise with the lender before you sign`
+    : checks.length ? `No rule problems found. ${checks.length} point${checks.length > 1 ? "s" : ""} to confirm` : "No problems found in these figures";
+  const sub = issues.length && s.estimatedExcess > 0
+    ? `Where it can be quantified, these add up to about <b>${inr(s.estimatedExcess)}</b> more than the rules allow.`
+    : "LoanLens checked the figures you entered against the RBI rules listed below.";
+
+  $("#results").innerHTML = `
+    <article class="card verdict ${issues.length ? "" : "clean"}">
+      <p class="headline">${h(headline)}</p>
+      <p>${sub}</p>
+      <dl class="figures">
+        <div><dt>True APR (recomputed)</dt><dd class="${aprGap > 0.25 ? "bad" : ""}">${pct(s.apr)}<small>${s.statedApr ? `KFS says ${pct(s.statedApr)}` : "KFS APR not entered"}</small></dd></div>
+        <div><dt>You actually receive</dt><dd>${inr(s.net)}<small>of ${inr(s.sanctioned)} sanctioned</small></dd></div>
+        <div><dt>You repay in total</dt><dd>${inr(s.totalRepaid)}<small>${s.advance ? `${s.advance} upfront + ` : ""}${s.laterPayments} × ${inr(s.emi)}</small></dd></div>
+        <div><dt>Cost per ₹100 received</dt><dd>${inr(s.per100 - 100, 2)}<small>over the full tenure</small></dd></div>
+      </dl>
+    </article>
+
+    <article class="card">
+      <h2>Findings</h2>
+      <p class="muted small">Tap a finding to see the numbers, the rule, and what to do.</p>
+      <ul class="findings">${result.findings.map(renderFinding).join("")}</ul>
+    </article>
+
+    ${renderWorking(input, s)}
+
+    ${issues.length ? `<article class="card letter">
+      <h2>Draft a letter to the lender</h2>
+      <p class="muted small">Addressed to the lender's Grievance Redressal Officer, citing each issue and its RBI reference. Edit it freely. Nothing is sent from this page.</p>
+      <div class="row">
+        <label>Lender<input id="l-lender" placeholder="e.g. Example Finance Ltd"></label>
+        <label>Loan / application no.<input id="l-ref"></label>
+        <label>Your name<input id="l-name"></label>
       </div>
-      <div class="grid">
-        <label class="mini">Type<select data-k="type">${Object.entries(TYPES).map(([k, v]) => `<option value="${k}" ${k === l.type ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-        <label class="mini">Outstanding (₹)<input type="number" data-k="principal" min="1000" step="1000" value="${l.principal}" inputmode="numeric"></label>
-        <label class="mini">Interest (% p.a.)<input type="number" data-k="rate" min="0" max="60" step="0.05" value="${l.rate}" inputmode="decimal"></label>
-        <label class="mini">Years left<input type="number" data-k="years" min="0.5" max="30" step="0.5" value="${l.years}" inputmode="decimal"></label>
-        <label class="mini">Prepay penalty (%)<input type="number" data-k="penalty" min="0" max="10" step="0.5" value="${l.penalty || 0}" inputmode="decimal"></label>
-        <div class="mini">EMI<div class="emi-note" data-emi></div></div>
-      </div>
-    </div>`).join("");
-  [...host.children].forEach((el, i) => el.style.setProperty("--c", COLORS[i % COLORS.length]));
-  updateEmiNotes();
-}
-function updateEmiNotes() {
-  document.querySelectorAll(".loan").forEach(el => {
-    const l = state.loans.find(x => x.id === Number(el.dataset.id));
-    el.querySelector("[data-emi]").innerHTML = `<b>${inr(emi(l.principal, l.rate, Math.round(l.years * 12)))}</b>/mo`;
-  });
-}
+      <textarea id="letter" aria-label="Draft grievance letter"></textarea>
+      <div class="actions"><button type="button" class="btn" id="copy">Copy letter</button><span class="muted small" id="copied" role="status"></span></div>
+      <p class="small muted">If the lender doesn't resolve it within 30 days, you can complain to the <a href="${RULES.ombudsman.url}" rel="noopener">RBI Ombudsman</a> online, free of charge.</p>
+    </article>` : ""}`;
 
-$("#loans").addEventListener("input", e => {
-  const el = e.target.closest(".loan"); if (!el || !e.target.dataset.k) return;
-  const l = state.loans.find(x => x.id === Number(el.dataset.id));
-  const k = e.target.dataset.k;
-  l[k] = ["name", "type"].includes(k) ? e.target.value : Math.max(0, Number(e.target.value) || 0);
-  updateEmiNotes(); schedule();
-});
-$("#loans").addEventListener("click", e => {
-  const id = e.target.dataset.remove; if (!id) return;
-  state.loans = state.loans.filter(l => l.id !== Number(id)); renderLoans(); schedule();
-});
-$("#add").addEventListener("click", () => {
-  if (state.loans.length >= 8) return toast("Up to 8 loans supported");
-  state.loans.push(withId({ name: `Loan ${state.loans.length + 1}`, type: "personal", principal: 200000, rate: 12, years: 3, penalty: 0 }));
-  renderLoans(); schedule();
-});
-document.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => { state.loans = PRESETS[b.dataset.preset].map(withId); state.selected = null; renderLoans(); schedule(); }));
-
-const extra = $("#extra"), lump = $("#lump"), lumpMonth = $("#lump-month");
-function syncPlanInputs() {
-  extra.value = state.extra; $("#extra-out").textContent = inr(state.extra);
-  lump.value = state.lump || ""; lumpMonth.value = state.lumpMonth;
-  $("#rollover").checked = state.rollover; $("#tax").value = String(state.tax); $("#ret").value = String(state.ret);
-  document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-checked", String(b.dataset.mode === state.mode)));
-}
-extra.addEventListener("input", () => { state.extra = Number(extra.value); $("#extra-out").textContent = inr(state.extra); schedule(); });
-lump.addEventListener("input", () => { state.lump = Math.max(0, Number(lump.value) || 0); schedule(); });
-lumpMonth.addEventListener("input", () => { state.lumpMonth = Math.max(1, Math.round(Number(lumpMonth.value) || 1)); schedule(); });
-$("#rollover").addEventListener("change", e => { state.rollover = e.target.checked; schedule(); });
-$("#tax").addEventListener("change", e => { state.tax = Number(e.target.value); schedule(); });
-$("#ret").addEventListener("change", e => { state.ret = Number(e.target.value); schedule(); });
-document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => { state.mode = b.dataset.mode; syncPlanInputs(); schedule(); }));
-
-$("#share").addEventListener("click", async () => {
-  const url = location.href.split("#")[0] + "#" + encodeState();
-  try { await navigator.clipboard.writeText(url); toast("Share link copied"); } catch { prompt("Copy this link", url); }
-});
-function encodeState() {
-  const { loans, extra, lump, lumpMonth, mode, rollover, tax, ret } = state;
-  return btoa(unescape(encodeURIComponent(JSON.stringify({ loans: loans.map(({ id, ...l }) => l), extra, lump, lumpMonth, mode, rollover, tax, ret }))));
-}
-function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 1800); }
-
-// ---------- Compute & render ----------
-let pending = false;
-function schedule() { if (!pending) { pending = true; requestAnimationFrame(() => { pending = false; compute(); }); } }
-
-function compute() {
-  const loans = state.loans.filter(l => l.principal > 0 && l.years > 0).map(l => ({ id: l.id, name: l.name || "Loan", type: l.type, principal: l.principal, rate: l.rate, tenure: Math.max(1, Math.round(l.years * 12)), penalty: l.penalty }));
-  const err = $("#error");
-  if (!loans.length) { err.hidden = false; err.textContent = "Add at least one loan with an outstanding amount."; return; }
-  const plan = { extra: state.extra, lumpSums: state.lump ? [{ month: state.lumpMonth, amount: state.lump }] : [], mode: state.mode, rollover: state.rollover, taxSlab: state.tax };
-  let cmp;
-  try { cmp = compareStrategies(loans, plan); err.hidden = true; }
-  catch (e) { err.hidden = false; err.textContent = e.message; return; }
-  const noExtra = !state.extra && !state.lump;
-  const sel = state.selected && state.selected !== "none" ? state.selected : cmp.best;
-  const r = cmp.results[sel], base = cmp.results.none;
-  history.replaceState(null, "", "#" + encodeState());
-
-  // Hero
-  $("#hero").innerHTML = noExtra
-    ? `<div class="eyebrow">Current path</div><h1>You'll be debt-free in <em>${monthName(base.months)}</em>.<br>Add an extra amount to see how much sooner.</h1>${stats(base, base)}`
-    : `<div class="eyebrow">${h(STRATEGIES[sel].label)} strategy · ${state.mode === "tenure" ? "reduce tenure" : "reduce EMI"}</div>
-       <h1>Debt-free by <em>${monthName(r.months)}</em>, ${r.monthsSaved > 0 ? `<em>${dur(r.monthsSaved)}</em> sooner` : "same timeline"}, saving <em>${compact(r.interestSaved)}</em> in interest.</h1>${stats(r, base)}`;
-
-  // Strategy cards
-  $("#strategies").innerHTML = Object.entries(STRATEGIES).map(([k, s]) => {
-    const x = cmp.results[k];
-    return `<button class="strat" data-s="${k}" aria-pressed="${k === sel}" title="${h(s.blurb)}">
-      ${k === cmp.best && !noExtra ? `<span class="best">BEST</span>` : ""}
-      <div class="name">${h(s.label)}</div>
-      <div class="cost">${compact(x.totalCost)}</div>
-      <div class="meta">${k === "none" ? "total interest" : x.interestSaved > 0 ? `<span class="saved">saves ${compact(x.interestSaved)}</span> · ${dur(x.months)}` : dur(x.months)}</div>
-    </button>`;
-  }).join("");
-  document.querySelectorAll(".strat").forEach(b => b.addEventListener("click", () => { state.selected = b.dataset.s; compute(); }));
-  $("#legend-sel").textContent = STRATEGIES[sel].label;
-
-  renderChart(base, r);
-  renderGantt(loans, base, r);
-  renderVerdict(loans, plan, sel, noExtra);
-  renderBreakdown(loans, base, r);
+  $("#results").querySelectorAll(".finding > button").forEach(b => b.addEventListener("click", () => {
+    const open = b.getAttribute("aria-expanded") === "true";
+    b.setAttribute("aria-expanded", String(!open));
+    b.nextElementSibling.hidden = open;
+  }));
+  if (issues.length) {
+    const update = () => { $("#letter").value = grievanceLetter(result, { lender: $("#l-lender").value, loanRef: $("#l-ref").value, name: $("#l-name").value }); };
+    ["#l-lender", "#l-ref", "#l-name"].forEach(s => $(s).addEventListener("input", update));
+    update();
+    $("#copy").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText($("#letter").value); $("#copied").textContent = "Copied."; }
+      catch { $("#letter").select(); $("#copied").textContent = "Press Ctrl+C to copy."; }
+    });
+  }
 }
 
-const stats = (r, base) => `<div class="stats">
-  <div class="stat"><div class="k">Total interest</div><div class="v">${compact(r.totalInterest)}</div></div>
-  <div class="stat"><div class="k">Interest saved</div><div class="v">${compact(Math.max(0, base.totalCost - r.totalCost))}</div></div>
-  <div class="stat"><div class="k">Debt-free in</div><div class="v">${dur(r.months)}</div></div>
-  <div class="stat"><div class="k">${r.totalPenalty > 0 ? "Penalties paid" : "Monthly EMIs now"}</div><div class="v">${r.totalPenalty > 0 ? compact(r.totalPenalty) : inr(state.loans.reduce((a, l) => a + emi(l.principal, l.rate, Math.round(l.years * 12)), 0))}</div></div>
-</div>`;
-
-function renderChart(base, r) {
-  const W = 760, H = 280, p = { l: 56, r: 12, t: 12, b: 28 };
-  const months = base.months, max = Math.max(1, base.timeline[0]?.total ?? 1, r.timeline[0]?.total ?? 1) * 1.05;
-  const x = m => p.l + (m / months) * (W - p.l - p.r), y = v => p.t + (1 - v / max) * (H - p.t - p.b);
-  const start = state.loans.filter(l => l.principal > 0 && l.years > 0).reduce((a, l) => a + l.principal, 0);
-  const path = tl => `M${x(0)},${y(start)} ` + tl.map(t => `L${x(t.month).toFixed(1)},${y(t.total).toFixed(1)}`).join(" ");
-  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Outstanding balance over time"><defs><linearGradient id="g" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".35"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>`;
-  for (let i = 0; i <= 4; i++) { const v = (max / 4) * i; svg += `<line class="grid-line" x1="${p.l}" x2="${W - p.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${p.l - 8}" y="${y(v) + 4}" text-anchor="end">${compact(v)}</text>`; }
-  const step = Math.max(12, Math.ceil(months / 8 / 12) * 12);
-  for (let m = 0; m <= months; m += step) svg += `<text x="${x(m)}" y="${H - 8}" text-anchor="middle">${m === 0 ? "Now" : `Y${m / 12}`}</text>`;
-  svg += `<path d="${path(r.timeline)} L${x(r.months)},${y(0)} L${x(0)},${y(0)} Z" fill="url(#g)"/>`;
-  svg += `<path d="${path(base.timeline)}" fill="none" stroke="var(--base)" stroke-width="2" stroke-dasharray="5 4"/>`;
-  svg += `<path d="${path(r.timeline)}" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round"/>`;
-  if (r.months < base.months) svg += `<circle cx="${x(r.months)}" cy="${y(0)}" r="5" fill="var(--accent)"/><text x="${x(r.months) + 10}" y="${y(0) - 14}" text-anchor="start" font-weight="700" fill="var(--text)" paint-order="stroke" stroke="var(--card-solid)" stroke-width="5" stroke-linejoin="round">Debt-free · ${monthName(r.months)}</text>`;
-  $("#chart").innerHTML = svg + "</svg>";
-}
-
-function renderGantt(loans, base, r) {
-  const max = base.months;
-  const host = $("#gantt");
-  host.innerHTML = loans.map((l, i) => {
-    const b = base.loans.find(x => x.id === l.id), s = r.loans.find(x => x.id === l.id);
-    return `<div class="g-row"><div class="lbl"><b>${h(l.name)}</b><span>${monthName(s.closedAt)}${b.closedAt - s.closedAt > 0 ? ` · ${dur(b.closedAt - s.closedAt)} early` : ""}</span></div><div class="g-track"><span class="g-base"></span><span class="g-sel"></span></div></div>`;
-  }).join("");
-  [...host.children].forEach((row, i) => {
-    const l = loans[i], b = base.loans.find(x => x.id === l.id), s = r.loans.find(x => x.id === l.id);
-    row.querySelector(".g-base").style.setProperty("--w", (b.closedAt / max) * 100 + "%");
-    const sel = row.querySelector(".g-sel");
-    sel.style.setProperty("--w", (s.closedAt / max) * 100 + "%");
-    sel.style.setProperty("--c", COLORS[state.loans.findIndex(x => x.id === l.id) % COLORS.length]);
-  });
-}
-
-function renderVerdict(loans, plan, sel, noExtra) {
-  const v = $("#verdict");
-  if (noExtra) { v.innerHTML = `<header class="card-head"><h3>Prepay or invest?</h3></header><p class="small">Set an extra monthly amount or a lump sum to compare prepaying with investing that money at ${state.ret}% a year.</p>`; return; }
-  const pv = prepayVsInvest(loans, { ...plan, strategy: sel }, state.ret);
-  const max = Math.max(pv.prepayCorpus, pv.investCorpus, 1);
-  v.innerHTML = `<header class="card-head"><h3>Prepay or invest?</h3><span class="small">at ${state.ret}% p.a. for ${dur(pv.horizon)}</span></header>
-    <div class="verdict-big ${pv.winner}">${pv.winner === "prepay" ? "Prepaying wins" : "Investing wins"} by ${compact(pv.difference)}</div>
-    <p class="small">Both paths spend the same cash every month. Wealth is compared at ${monthName(pv.horizon)}, when the loans would close anyway.</p>
-    <div class="bars2">
-      <div class="b"><span>Prepay first</span><span class="t"><span class="f" data-w="${(pv.prepayCorpus / max) * 100}"></span></span><span class="v">${compact(pv.prepayCorpus)}</span></div>
-      <div class="b"><span>Invest instead</span><span class="t"><span class="f" data-w="${(pv.investCorpus / max) * 100}"></span></span><span class="v">${compact(pv.investCorpus)}</span></div>
+const LABEL = { issue: "Raise this", check: "Confirm", info: "Good to know", ok: "Looks fine" };
+const ICON = { issue: "!", check: "?", info: "i", ok: "✓" };
+let fid = 0;
+function renderFinding(f) {
+  const id = "f" + (++fid);
+  const openByDefault = f.status === "issue";
+  return `<li class="finding ${f.status}">
+    <button type="button" aria-expanded="${openByDefault}" aria-controls="${id}">
+      <span class="badge"><span aria-hidden="true">${ICON[f.status]}</span>${LABEL[f.status]}</span>
+      <span class="title">${h(f.title)}</span>
+      <span class="excess">${f.excess > 0 ? "≈ " + inr(f.excess) : ""}</span>
+    </button>
+    <div class="body" id="${id}" ${openByDefault ? "" : "hidden"}>
+      <span class="label">What we found</span><p>${h(f.detail)}</p>
+      ${f.action ? `<span class="label">What to do</span><p>${h(f.action)}</p>` : ""}
+      ${f.rule ? `<div class="rule"><span class="muted small">Rule: </span><a href="${h(f.rule.url)}" target="_blank" rel="noopener">${h(f.rule.name)} ↗</a>
+        <div class="meta">${h(f.rule.ref)}${f.rule.date ? " · " + h(f.rule.date) : ""}</div>
+        <details><summary>What the rule says</summary><p>${h(f.rule.summary)}</p></details></div>` : ""}
     </div>
-    <p class="small">Returns aren't guaranteed, but interest saved is. Prepaying also lowers risk, so many people prepay loans above about 9–10% and invest when loans are cheaper.</p>`;
-  v.querySelectorAll(".f").forEach(f => f.style.setProperty("--w", f.dataset.w + "%"));
+  </li>`;
 }
 
-function renderBreakdown(loans, base, r) {
-  $("#breakdown").innerHTML = `<thead><tr><th>Loan</th><th class="num">Rate</th><th class="num">Interest (EMIs only)</th><th class="num">Interest (plan)</th><th class="num">Prepaid</th><th class="num">Closes</th></tr></thead><tbody>` +
-    loans.map(l => {
-      const b = base.loans.find(x => x.id === l.id), s = r.loans.find(x => x.id === l.id);
-      const c = COLORS[state.loans.findIndex(x => x.id === l.id) % COLORS.length];
-      return `<tr><td><span class="dot" data-c="${c}"></span>${h(l.name)}</td><td class="num">${l.rate}%</td><td class="num">${inr(b.interest)}</td><td class="num">${inr(s.interest)}${b.interest - s.interest > 1 ? ` <span class="good">−${compact(b.interest - s.interest)}</span>` : ""}</td><td class="num">${inr(s.prepaid)}${s.penalty > 1 ? `<div class="small">+${inr(s.penalty)} penalty</div>` : ""}</td><td class="num">${monthName(s.closedAt)}</td></tr>`;
-    }).join("") + "</tbody>";
-  document.querySelectorAll(".dot").forEach(d => d.style.setProperty("--c", d.dataset.c));
+function renderWorking(input, s) {
+  const rows = schedule(input);
+  const n = s.laterPayments;
+  return `<article class="card working">
+    <details>
+      <summary><h2>Show the working</h2></summary>
+      <div class="cols">
+        <div>
+          <h3>From sanctioned amount to money in hand</h3>
+          <table>
+            <tbody>
+              <tr><td>Sanctioned amount</td><td class="num">${inr(s.sanctioned, 2)}</td></tr>
+              ${s.upfront.map(d => `<tr><td>− ${h(d.label)}</td><td class="num">${inr(d.amount, 2)}</td></tr>`).join("")}
+            </tbody>
+            <tfoot><tr><td>Net amount received</td><td class="num">${inr(s.net, 2)}</td></tr></tfoot>
+          </table>
+        </div>
+        <div>
+          <h3>APR, step by step</h3>
+          <p class="small">Find the monthly rate <i>i</i> at which ${n} payments of ${inr(s.emi, 2)} are worth exactly ${inr(s.net, 2)} today:</p>
+          <p class="formula">${inr(s.net, 2)} = ${inr(s.emi, 2)} × (1 − (1 + i)<sup>−${n}</sup>) ÷ i</p>
+          <p class="small">i = ${(s.apr / 12).toFixed(4)}% a month → APR = i × 12 = <b>${pct(s.apr)}</b> (without GST on fees: ${pct(s.aprExGst)}; compounded yearly: ${pct(s.effectiveAnnual)}).</p>
+          <p class="small">Check it yourself in Excel or Google Sheets:</p>
+          <p class="formula">=RATE(${n}, -${s.emi.toFixed(2)}, ${s.net.toFixed(2)}) * 12</p>
+        </div>
+      </div>
+      <div class="scroll">
+        <table>
+          <thead><tr><th>Month</th><th class="num">EMI</th><th class="num">Interest at APR</th><th class="num">Principal</th><th class="num">Balance</th></tr></thead>
+          <tbody>${rows.map(r => `<tr><td>${r.month}</td><td class="num">${inr(r.emi, 2)}</td><td class="num">${inr(r.interest, 2)}</td><td class="num">${inr(r.principal, 2)}</td><td class="num">${inr(r.balance, 2)}</td></tr>`).join("")}</tbody>
+        </table>
+      </div>
+    </details>
+  </article>`;
 }
 
-renderLoans();
-syncPlanInputs();
-compute();
+function renderSources() {
+  $("#source-list").innerHTML = Object.values(RULES).map(r => `<li><a href="${h(r.url)}" target="_blank" rel="noopener">${h(r.name)}</a>
+    <div class="meta">${h(r.ref)}${r.date ? " · " + h(r.date) : ""} · summary last checked ${h(r.verified)}</div></li>`).join("");
+}
+
+// ---------- Wiring ----------
+let t;
+form.addEventListener("input", e => { if (e.target.name === "digital") toggleDigital(); clearTimeout(t); t = setTimeout(run, 120); });
+form.addEventListener("submit", e => e.preventDefault());
+$("#example").addEventListener("change", e => { fill(e.target.value ? examples()[e.target.value] : {}); run(); });
+$("#theme").addEventListener("click", () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  root.dataset.theme = dark ? "light" : "dark";
+});
+
+renderSources();
+fill(examples().app);
+run();
