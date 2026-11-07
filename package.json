@@ -1,0 +1,1 @@
+{"name":"loanlens","version":"1.0.0","private":true,"type":"module","description":"Multi-loan prepayment optimiser for Indian borrowers","scripts":{"test":"node --test","serve":"npx --yes serve@14.2.4 ."},"license":"MIT"}
