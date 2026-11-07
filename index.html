@@ -3,146 +3,178 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>LoanLens — Check a loan offer against RBI rules</title>
-  <meta name="description" content="Enter the figures from your loan's Key Facts Statement. LoanLens recomputes the true APR using RBI's method, checks the offer against specific RBI rules, and drafts a grievance letter. Runs entirely in your browser.">
-  <meta name="theme-color" content="#0f3d5e">
+  <title>LoanLens — Your loan's real price, checked against RBI's rules</title>
+  <meta name="description" content="LoanLens recomputes the true APR from your loan's Key Facts Statement using RBI's method, flags practices RBI has prohibited, and drafts the complaint. Runs entirely in your browser.">
+  <meta name="theme-color" content="#1e3a6e">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230f3d5e'/%3E%3Cpath d='M9 16.5l4.5 4.5L23 11.5' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231e3a6e'/%3E%3Ccircle cx='14.5' cy='14.5' r='6.5' stroke='white' stroke-width='2.6' fill='none'/%3E%3Cpath d='M19.5 19.5l5 5' stroke='white' stroke-width='2.6' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="family.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <a class="skip" href="#results">Skip to results</a>
+  <a class="skip" href="#audit">Skip to the audit</a>
+  <div class="hd-family"><div class="hd-row">
+    <span class="hd-sig"><b>Harshil Desai</b><span> · Evidence-first tools for Indian finance</span></span>
+    <nav aria-label="Other tools by Harshil Desai">
+      <a href="https://chickoo123.github.io/loanlens/" aria-current="page">LoanLens</a>
+      <a href="https://chickoo123.github.io/paisatrail/">PaisaTrail</a>
+      <a href="https://chickoo123.github.io/ipo-reality-lab/">IPO Lab</a>
+      <a href="https://github.com/Chickoo123/RecoverX">RecoverX</a>
+    </nav>
+  </div></div>
+
   <header class="site-head">
     <div class="wrap head-row">
-      <a class="brand" href="./"><span class="mark" aria-hidden="true">✓</span>LoanLens</a>
-      <nav class="head-links">
+      <a class="brand" href="./" aria-label="LoanLens home">
+        <span class="mark" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M14.6 14.6l4.4 4.4"/></svg></span>
+        LoanLens
+      </a>
+      <nav class="head-links" aria-label="Page">
+        <a href="#how">How it works</a>
         <a href="#method">Method</a>
         <a href="#sources">Sources</a>
-        <a href="https://github.com/Chickoo123/loanlens">Source code</a>
-        <button id="theme" class="ghost-btn" aria-label="Toggle dark mode">◐</button>
+        <a href="https://github.com/Chickoo123/loanlens">GitHub</a>
+        <button id="theme" class="icon-btn" type="button" aria-label="Toggle dark mode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg></button>
       </nav>
     </div>
   </header>
 
-  <main class="wrap">
-    <section class="intro">
-      <h1>Check a loan offer against RBI rules before you sign.</h1>
-      <p class="lede">Copy the figures from your loan's <strong>Key Facts Statement (KFS)</strong>, which RBI requires for every retail loan. LoanLens recomputes the true cost, checks the offer against specific RBI rules, and tells you what to raise with the lender.</p>
-      <ul class="trust">
-        <li><b>RBI's APR method.</b> It reproduces the worked example in RBI's KFS circular (17.07%).</li>
-        <li><b>Every finding is cited.</b> Each one links to the RBI circular it relies on.</li>
-        <li><b>Private by design.</b> It runs in your browser, and nothing you type is sent or stored.</li>
-      </ul>
+  <main>
+    <section class="hero wrap">
+      <div class="hero-copy">
+        <p class="hd-eyebrow"><span class="pulse" aria-hidden="true"></span>Built on RBI's Key Facts Statement rules</p>
+        <h1>Your loan's real price, checked against RBI's&nbsp;rules.</h1>
+        <p class="lede">Lenders must disclose an all-inclusive APR and avoid practices RBI has named. LoanLens recomputes your APR from the Key Facts Statement, flags what breaks the rules, and drafts the complaint, all inside your browser.</p>
+        <div class="cta">
+          <a class="btn primary" href="#audit">Audit a loan offer</a>
+          <a class="btn quiet" href="#audit" data-example="app">See a sample audit <span aria-hidden="true">→</span></a>
+        </div>
+        <dl class="proof">
+          <div><dt>17.07%</dt><dd>Matches the APR in RBI's own worked example</dd></div>
+          <div><dt>10 checks</dt><dd>Each tied to a specific RBI circular</dd></div>
+          <div><dt>0 bytes</dt><dd>Leave your device. No sign-up, no tracking</dd></div>
+        </dl>
+      </div>
+      <aside class="specimen" id="specimen" aria-label="Sample audit result"></aside>
     </section>
 
-    <div class="layout">
-      <form id="form" class="panel" novalidate aria-label="Loan offer details">
-        <div class="examples">
-          <label for="example">Start from an example</label>
+    <section id="how" class="how wrap" aria-label="How it works">
+      <ol>
+        <li><span>01</span><h3>Copy your KFS</h3><p>Enter the figures from the Key Facts Statement your lender must give you. The form follows RBI's KFS layout.</p></li>
+        <li><span>02</span><h3>We recompute and check</h3><p>True APR from the actual cash flows, plus 10 checks against prohibited practices, each with its arithmetic shown.</p></li>
+        <li><span>03</span><h3>Act on the evidence</h3><p>A report you can verify in Excel, and a letter to the lender that cites each RBI rule.</p></li>
+      </ol>
+    </section>
+
+    <section id="audit" class="workspace wrap" aria-label="Loan audit">
+      <header class="ws-head">
+        <div>
+          <p class="hd-eyebrow">Audit</p>
+          <h2>Check a loan offer</h2>
+        </div>
+        <label class="example-pick">Load an example
           <select id="example">
             <option value="">Blank form</option>
-            <option value="app" selected>Instant-loan app offer (several problems)</option>
+            <option value="app" selected>Instant-loan app offer</option>
             <option value="bank">Bank personal loan (clean)</option>
             <option value="home">Home loan with a pre-payment clause</option>
           </select>
-        </div>
+        </label>
+      </header>
 
-        <fieldset>
-          <legend><span class="step">1</span> Loan terms <small>KFS Part 1: loan amount, rate, tenure</small></legend>
-          <div class="grid2">
-            <label>Sanctioned amount (₹)<input name="sanctioned" type="number" min="0" step="1" inputmode="numeric" required></label>
-            <label>Interest rate (% a year)<input name="rate" type="number" min="0" max="99" step="0.01" inputmode="decimal" required></label>
-            <label>Tenure (months)<input name="tenure" type="number" min="1" max="480" step="1" inputmode="numeric" required></label>
-            <label><span>EMI shown (₹) <span class="opt">optional</span></span><input name="emi" type="number" min="0" step="0.01" inputmode="decimal"></label>
-            <label>How interest is calculated
-              <select name="rateBasis"><option value="reducing">Reducing balance</option><option value="flat">Flat rate</option></select>
-            </label>
-            <label>Rate type
-              <select name="rateType"><option value="fixed">Fixed</option><option value="floating">Floating</option></select>
-            </label>
-            <label>Instalments collected upfront<input name="advanceEmis" type="number" min="0" max="12" step="1" inputmode="numeric"></label>
-          </div>
-        </fieldset>
+      <div class="layout">
+        <form id="form" class="panel" novalidate aria-label="Loan offer details">
+          <fieldset>
+            <legend><span class="step">1</span>Loan terms<small>KFS Part 1</small></legend>
+            <div class="grid2">
+              <label>Sanctioned amount<span class="unit">₹</span><input name="sanctioned" type="number" min="0" step="1" inputmode="numeric" required></label>
+              <label>Interest rate<span class="unit">% p.a.</span><input name="rate" type="number" min="0" max="99" step="0.01" inputmode="decimal" required></label>
+              <label>Tenure<span class="unit">months</span><input name="tenure" type="number" min="1" max="480" step="1" inputmode="numeric" required></label>
+              <label>EMI shown<span class="unit">₹ · optional</span><input name="emi" type="number" min="0" step="0.01" inputmode="decimal"></label>
+              <label>Interest method<select name="rateBasis"><option value="reducing">Reducing balance</option><option value="flat">Flat rate</option></select></label>
+              <label>Rate type<select name="rateType"><option value="fixed">Fixed</option><option value="floating">Floating</option></select></label>
+              <label>Instalments collected upfront<input name="advanceEmis" type="number" min="0" max="12" step="1" inputmode="numeric"></label>
+            </div>
+          </fieldset>
 
-        <fieldset>
-          <legend><span class="step">2</span> Fees and deductions <small>"Fees/charges" section of the KFS</small></legend>
-          <div class="grid2">
-            <label>Processing fee (₹)<input name="processingFee" type="number" min="0" step="1" inputmode="numeric"></label>
-            <label class="check-row"><input name="feeGstIncluded" type="checkbox"> Fee already includes 18% GST</label>
-            <label>Insurance premium deducted (₹)<input name="insurance" type="number" min="0" step="1" inputmode="numeric"></label>
-            <label>Other upfront charges (₹)<input name="otherUpfront" type="number" min="0" step="1" inputmode="numeric"></label>
-            <label>Broken-period / pre-EMI interest (₹)<input name="brokenPeriodInterest" type="number" min="0" step="1" inputmode="numeric"></label>
-          </div>
-        </fieldset>
+          <fieldset>
+            <legend><span class="step">2</span>Fees and deductions<small>KFS charges section</small></legend>
+            <div class="grid2">
+              <label>Processing fee<span class="unit">₹</span><input name="processingFee" type="number" min="0" step="1" inputmode="numeric"></label>
+              <label class="check-row"><input name="feeGstIncluded" type="checkbox"><span>Fee includes 18% GST</span></label>
+              <label>Insurance deducted<span class="unit">₹</span><input name="insurance" type="number" min="0" step="1" inputmode="numeric"></label>
+              <label>Other upfront charges<span class="unit">₹</span><input name="otherUpfront" type="number" min="0" step="1" inputmode="numeric"></label>
+              <label>Broken-period interest<span class="unit">₹</span><input name="brokenPeriodInterest" type="number" min="0" step="1" inputmode="numeric"></label>
+            </div>
+          </fieldset>
 
-        <fieldset>
-          <legend><span class="step">3</span> What the KFS says <small>Used to verify the lender's own numbers</small></legend>
-          <div class="grid2">
-            <label>Net amount disbursed (₹)<input name="statedNetDisbursed" type="number" min="0" step="1" inputmode="numeric"></label>
-            <label>Annual Percentage Rate (APR, %)<input name="statedApr" type="number" min="0" max="999" step="0.01" inputmode="decimal"></label>
-          </div>
-        </fieldset>
+          <fieldset>
+            <legend><span class="step">3</span>What the KFS states<small>Used to verify the lender's numbers</small></legend>
+            <div class="grid2">
+              <label>Net amount disbursed<span class="unit">₹</span><input name="statedNetDisbursed" type="number" min="0" step="1" inputmode="numeric"></label>
+              <label>APR stated<span class="unit">%</span><input name="statedApr" type="number" min="0" max="999" step="0.01" inputmode="decimal"></label>
+            </div>
+          </fieldset>
 
-        <details>
-          <summary><span class="step">4</span> Dates <small>From the sanction letter or repayment schedule</small></summary>
-          <div class="grid2">
-            <label>Disbursal date<input name="disbursalDate" type="date"></label>
-            <label>Interest charged from<input name="interestFromDate" type="date"></label>
-            <label>First EMI date<input name="firstEmiDate" type="date"></label>
-          </div>
-        </details>
+          <details>
+            <summary><span class="step">4</span>Dates<small>Sanction letter or schedule</small></summary>
+            <div class="grid2">
+              <label>Disbursal date<input name="disbursalDate" type="date"></label>
+              <label>Interest charged from<input name="interestFromDate" type="date"></label>
+              <label>First EMI date<input name="firstEmiDate" type="date"></label>
+            </div>
+          </details>
 
-        <details>
-          <summary><span class="step">5</span> Other terms <small>Pre-payment, penalties, digital loans</small></summary>
-          <div class="grid2">
-            <label>Pre-payment charge (% of amount)<input name="prepaymentChargePct" type="number" min="0" max="10" step="0.1" inputmode="decimal"></label>
-            <label>Sanctioned on or after 1 Jan 2026?
-              <select name="sanctionedOnOrAfter2026"><option value="true">Yes / not yet sanctioned</option><option value="false">No, earlier</option></select>
-            </label>
-            <label>Borrower
-              <select name="borrower"><option value="individual">Individual</option><option value="non_individual">Company / firm</option></select>
-            </label>
-            <label>Purpose
-              <select name="purpose"><option value="non_business">Personal (non-business)</option><option value="business">Business</option></select>
-            </label>
-            <label>Late-payment penalty is…
-              <select name="penalStyle"><option value="charge">A fixed penal charge</option><option value="rate_added">Extra % added to the interest rate</option><option value="unknown">Not sure</option></select>
-            </label>
-            <label>Charges asked for but not on the KFS (₹)<input name="undisclosedCharges" type="number" min="0" step="1" inputmode="numeric"></label>
-            <label class="check-row"><input name="digital" type="checkbox"> Taken through an app or website (digital loan)</label>
-            <label data-digital>Cooling-off period in KFS (days)<input name="coolingOffDays" type="number" min="0" max="30" step="1" inputmode="numeric" placeholder="blank = not stated"></label>
-          </div>
-        </details>
-        <p id="errors" class="errors" role="alert" hidden></p>
-      </form>
+          <details>
+            <summary><span class="step">5</span>Other terms<small>Pre-payment, penalties, digital loans</small></summary>
+            <div class="grid2">
+              <label>Pre-payment charge<span class="unit">%</span><input name="prepaymentChargePct" type="number" min="0" max="10" step="0.1" inputmode="decimal"></label>
+              <label>Sanctioned on or after 1 Jan 2026?<select name="sanctionedOnOrAfter2026"><option value="true">Yes / not yet</option><option value="false">No, earlier</option></select></label>
+              <label>Borrower<select name="borrower"><option value="individual">Individual</option><option value="non_individual">Company / firm</option></select></label>
+              <label>Purpose<select name="purpose"><option value="non_business">Personal</option><option value="business">Business</option></select></label>
+              <label>Late-payment penalty<select name="penalStyle"><option value="charge">Fixed penal charge</option><option value="rate_added">Extra % on the rate</option><option value="unknown">Not sure</option></select></label>
+              <label>Charges not on the KFS<span class="unit">₹</span><input name="undisclosedCharges" type="number" min="0" step="1" inputmode="numeric"></label>
+              <label class="check-row"><input name="digital" type="checkbox"><span>Digital loan (app or website)</span></label>
+              <label data-digital>Cooling-off period<span class="unit">days</span><input name="coolingOffDays" type="number" min="0" max="30" step="1" inputmode="numeric" placeholder="blank = not stated"></label>
+            </div>
+          </details>
+          <p id="errors" class="errors" role="alert" hidden></p>
+        </form>
 
-      <section id="results" class="results" aria-live="polite" aria-label="Audit results"></section>
+        <section id="results" class="report" aria-live="polite" aria-label="Audit report"></section>
+      </div>
       <a id="jump" class="jump" href="#results" hidden></a>
-    </div>
-
-    <section id="method" class="doc">
-      <h2>How LoanLens calculates</h2>
-      <ol>
-        <li><b>Net amount received</b> = sanctioned amount − processing fee (plus 18% GST unless already included) − insurance − other upfront charges − broken-period interest − instalments collected upfront.</li>
-        <li><b>APR</b> = the monthly rate that makes the remaining EMIs worth exactly the net amount received, × 12. This is a plain internal rate of return on a reducing balance, matching the illustration in Annex B of RBI's KFS circular. LoanLens also shows the APR without GST, because lenders differ on whether GST is included. A difference of 0.25 points or less is treated as a match.</li>
-        <li><b>Rule checks</b> compare your figures with the specific practices RBI has prohibited. Each finding shows the arithmetic, the rule, and what to ask the lender.</li>
-      </ol>
-      <h3>What LoanLens cannot tell you</h3>
-      <ul>
-        <li>Whether a lender is registered with RBI. Check the lender on RBI's website before borrowing.</li>
-        <li>Anything that isn't in the figures you enter. If the KFS is wrong or missing, the result can be too.</li>
-        <li>Legal advice. Findings are prompts to ask the lender, not determinations. Rules differ by lender type, and RBI updates them.</li>
-      </ul>
     </section>
 
-    <section id="sources" class="doc">
-      <h2>Sources</h2>
-      <ul id="source-list" class="sources"></ul>
+    <section class="appendix wrap">
+      <article id="method" class="doc">
+        <p class="hd-eyebrow">Methodology</p>
+        <h2>How the numbers are produced</h2>
+        <ol class="method-steps">
+          <li><b>Net amount received</b><span>Sanctioned amount − processing fee (+18% GST unless included) − insurance − other upfront charges − broken-period interest − instalments collected upfront. If the KFS states a lower net amount, that amount is used.</span></li>
+          <li><b>APR</b><span>The monthly rate at which the remaining EMIs are worth exactly the net amount received, × 12. This is a plain IRR on a reducing balance, matching Annex B of RBI's KFS circular. It is shown with and without GST because lenders differ, and gaps of 0.25 points or less count as a match.</span></li>
+          <li><b>Rule checks</b><span>Each check compares your figures with a practice RBI has prohibited or a disclosure it requires. A finding is marked <em>Proven</em> only when your figures alone establish it; anything else is marked <em>Confirm</em>.</span></li>
+        </ol>
+        <h3>What LoanLens cannot tell you</h3>
+        <ul class="limits">
+          <li>Whether the lender is registered with RBI. Check on RBI's website before borrowing.</li>
+          <li>Anything outside the figures you enter. A wrong or missing KFS gives a wrong result.</li>
+          <li>Legal advice. Findings are questions to put to the lender. Rules vary by lender type and change.</li>
+        </ul>
+      </article>
+      <article id="sources" class="doc">
+        <p class="hd-eyebrow">Sources</p>
+        <h2>Every rule, linked to RBI</h2>
+        <ul id="source-list" class="sources"></ul>
+      </article>
     </section>
   </main>
 
-  <footer class="site-foot wrap">
-    <p>Built by <a href="https://github.com/Chickoo123">Harshil Desai</a> · Open source (MIT) · Not affiliated with RBI or any lender · Not legal or financial advice.</p>
+  <footer class="site-foot">
+    <div class="wrap foot-row">
+      <span>Built by <a href="https://github.com/Chickoo123">Harshil Desai</a> · MIT licensed</span>
+      <span>Not affiliated with RBI or any lender · Not legal or financial advice</span>
+    </div>
   </footer>
   <script type="module" src="src/app.js"></script>
 </body>
