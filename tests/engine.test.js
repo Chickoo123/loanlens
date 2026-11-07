@@ -94,3 +94,9 @@ test("prepay vs invest: a 7% loan loses to 12% returns; an 18% loan beats them",
 test("an EMI that cannot cover interest is rejected with a clear error", () => {
   assert.throws(() => simulate([{ id: 1, name: "Bad", principal: 1_000_000, rate: 12, emi: 5_000 }]), /does not cover/);
 });
+
+test("unknown strategy names (e.g. from a tampered share link) are rejected, not dispatched", () => {
+  const loans = [{ id: 1, name: "Car", principal: 500_000, rate: 9, tenure: 60 }];
+  assert.throws(() => simulate(loans, { strategy: "constructor", extra: 1000 }), /Unknown strategy/);
+  assert.throws(() => simulate(loans, { strategy: "__proto__", extra: 1000 }), /Unknown strategy/);
+});

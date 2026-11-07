@@ -41,6 +41,7 @@ export function effectiveRate(loan, taxSlab = 0) {
  */
 export function simulate(loans, plan = {}) {
   const { strategy = "none", extra = 0, lumpSums = [], mode = "tenure", rollover = true, taxSlab = 0, maxMonths = 600 } = plan;
+  if (!Object.prototype.hasOwnProperty.call(STRATEGIES, strategy)) throw new Error(`Unknown strategy: ${String(strategy).slice(0, 40)}`);
   const st = loans.filter(l => l.principal > 0).map(l => {
     const pay = l.emi || emi(l.principal, l.rate, l.tenure);
     return { ...l, bal: l.principal, pay, interest: 0, penaltyPaid: 0, prepaid: 0, closedAt: null, remaining: l.tenure || tenureFor(l.principal, l.rate, pay) };
@@ -68,11 +69,12 @@ export function simulate(loans, plan = {}) {
     let pool = strategy === "none" ? 0 : extra + freed + (lumps.get(month) || 0);
     if (pool > 0) {
       const open = st.filter(l => l.bal > 0.005);
-      const order = {
-        avalanche: () => [...open].sort((a, b) => effectiveRate(b, taxSlab) - effectiveRate(a, taxSlab) || a.bal - b.bal),
-        snowball: () => [...open].sort((a, b) => a.bal - b.bal || b.rate - a.rate),
-        proportional: () => open,
-      }[strategy]();
+      let order;
+      switch (strategy) {
+        case "avalanche": order = [...open].sort((a, b) => effectiveRate(b, taxSlab) - effectiveRate(a, taxSlab) || a.bal - b.bal); break;
+        case "snowball": order = [...open].sort((a, b) => a.bal - b.bal || b.rate - a.rate); break;
+        default: order = open; // proportional
+      }
       const totalBal = open.reduce((a, l) => a + l.bal, 0);
       const targets = strategy === "proportional"
         ? order.map(l => [l, pool * (l.bal / totalBal)])
