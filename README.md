@@ -8,7 +8,9 @@
 
 **[Open LoanLens →](https://chickoo123.github.io/loanlens/)**
 
-<img src="docs/dashboard.png" alt="LoanLens auditing an instant-loan app offer: recomputed APR of 94.22% against 34.50% stated, with six findings citing RBI circulars" width="860">
+<img src="docs/hero.png" alt="LoanLens landing page with a live sample audit: advertised APR 34.50% versus recomputed 94.22%" width="860">
+
+Part of **[Harshil Desai's evidence-first tools for Indian finance](https://github.com/Chickoo123)**: [LoanLens](https://github.com/Chickoo123/loanlens) · [PaisaTrail](https://github.com/Chickoo123/paisatrail) · [IPO Lab](https://github.com/Chickoo123/ipo-reality-lab) · [RecoverX](https://github.com/Chickoo123/RecoverX)
 
 ## The problem
 
@@ -40,8 +42,11 @@ You copy the figures from your KFS into a form laid out in the same order as RBI
    | Charges demanded that aren't on the KFS | KFS circular |
    | Digital loan with no cooling-off period of at least one day | Digital Lending Directions, 2025 |
 
-3. **Explains its working.** You can see every deduction from sanctioned amount to money in hand, the APR equation with your numbers, a full amortisation table, and an `=RATE()` formula to verify the result in Excel.
-4. **Drafts a letter** to the lender's Grievance Redressal Officer that cites each issue and its RBI reference, with the 30-day route to the RBI Ombudsman.
+3. **Reads like an audit report.** Each finding is numbered, labelled *Proven* or *Confirm*, and opens into an evidence chain: calculation → RBI rule → what to do.
+4. **Explains its working.** You can see every deduction from sanctioned amount to money in hand, the APR equation with your numbers, a full amortisation table, and an `=RATE()` formula to verify the result in Excel.
+5. **Drafts a letter** to the lender's Grievance Redressal Officer that cites each issue and its RBI reference, with the 30-day route to the RBI Ombudsman.
+
+<img src="docs/dashboard.png" alt="LoanLens audit report: verdict, APR comparison and numbered findings with evidence chains" width="860">
 
 ## Design decisions
 
